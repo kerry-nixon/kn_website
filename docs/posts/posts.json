@@ -1,0 +1,19 @@
+[
+  {
+    "path": "posts/2021-02-08-welcome/",
+    "title": "welcome",
+    "description": "My first blog post.",
+    "author": [
+      {
+        "name": "Kerry Nixon",
+        "url": {}
+      }
+    ],
+    "date": "2021-02-08",
+    "categories": [],
+    "contents": "\nHi everyone - this is my blog. Come back soon for some fresh content!\n\n\n\n",
+    "preview": {},
+    "last_modified": "2021-02-08T10:48:15-08:00",
+    "input_file": "welcome.utf8.md"
+  }
+]

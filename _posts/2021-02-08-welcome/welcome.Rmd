@@ -1,0 +1,20 @@
+---
+title: "welcome"
+description: |
+  My first blog post.
+author:
+  - name: Kerry Nixon
+date: 02-08-2021
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+Hi everyone - this is my blog. Come back soon for some fresh content!
+
+
