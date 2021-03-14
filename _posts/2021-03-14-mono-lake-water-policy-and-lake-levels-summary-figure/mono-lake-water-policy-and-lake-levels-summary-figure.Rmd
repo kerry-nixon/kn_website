@@ -1,0 +1,75 @@
+---
+title: "Mono Lake Water Policy and Lake Levels: Summary Figure"
+description: |
+  A summary figure to give an overview of Mono Lake water policy, water levels, and ecological implications. This project was completed as an assignment for Professor Allison Horst's ESM 206 Data Science & Management Course. Completed: 12/5/2020
+author:
+  - name: Kerry Nixon
+    url: {}
+date: 03-14-2021
+output:
+  distill::distill_article:
+    self_contained: false
+    code_folding: 'hide'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(janitor)
+library(here)
+library(ggrepel)
+```
+
+
+```{r}
+# Reading in the data:
+mono_lake <- read_csv(here("_posts/2021-03-14-mono-lake-water-policy-and-lake-levels-summary-figure/data/mono_lake_annual_levels.csv"), skip = 5) %>% 
+  clean_names() %>% 
+  mutate(mjr_evt = case_when(
+    year == 1941 ~ "1941: Start of LADWP water diversion",
+    year == 1994 ~ "1994: Decision 1631\nsets lake level\nof 6392 feet"
+  ))
+```
+
+
+```{r}
+lake_levels <- ggplot(data = mono_lake, aes(x=year, y=lake_level_feet_above_sea_level)) +
+  geom_ribbon(aes(ymin = -Inf, ymax = lake_level_feet_above_sea_level), 
+              fill = "darkslategray3", 
+              alpha = 0.2) +
+  geom_line(color = "darkslategray3",
+            size = 1) +
+  geom_hline(yintercept = 6377, xend = 2017, color = "coral2", size = 0.5) +
+  geom_hline(yintercept = 6360, color = "coral3", size = 0.5) +
+  geom_hline(yintercept = 6350, color = "coral4", size=0.5) +
+  labs(x = "\nYear\n",
+       y = "\nLake Level (feet above sea level)\n") +
+  annotate("text", x = 2017, y = 6348,
+           label = "   Acute ecological impacts\n   from salinity changes",
+           hjust = 0, size = 2.5, fontface = "bold") +
+  annotate("text", x = 2017, y = 6360,
+           label = "   Salinity impacts shrimp\n   and bird populations",
+           hjust = 0, size = 2.5, fontface = "bold") +
+  annotate("text", x = 2017, y = 6377,
+           label = "   Land bridges emerge\n   allowing nest site predation",
+           hjust = 0, size = 2.5, fontface = "bold") +
+  geom_label_repel(aes(label = mjr_evt),
+                   fill = "white",
+                   size = 2.5,
+                   nudge_y = 20) +
+  scale_x_continuous(expand = c(0,0), n.breaks = 8) +
+  ylim(6345,6450) +
+  theme_minimal()
+  
+lake_levels +
+  theme(plot.margin = unit(c(1,8,0.5,0.5), "lines")) +
+  coord_cartesian(clip = "off") 
+
+```
+
+**Figure 1.** Annual Change in Mono Lake Water Level (1850-2017). Mono Lake is a terminal saline lake in the Sierra Nevada Mountains northeast of Yosemite National Park. Water usage schemes have played a major role in the changing water levels of the lake. Water diversion has at times resulted in increased predator pressure on bird species nesting on islands in the lake, as well as increased salinity. The lake water level in feet above sea level is shown for every year from 1850 through 2017. Key events affecting water levels and important ecological thresholds are labeled on the graph. (Data: Mono Basin Clearinghouse, 2017)
+
+#### Citation:
+
+Mono Basin Clearinghouse, Mono Lake Committee. “Mono Lake Levels 1850-present”. https://www.monobasinresearch.org/data/levelyearly.php. (October 2017).

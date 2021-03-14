@@ -1,0 +1,11 @@
+---
+title: "Resume"
+description: |
+  Extended resumé featuring professional, academic, and volunteer experience.
+---
+
+```{r echo = FALSE, message=FALSE, fig.align='center', fig.pos='H', out.width = "800px", out.height = "1100px"}
+
+knitr::include_graphics("LongRes_2021.pdf")
+```
+

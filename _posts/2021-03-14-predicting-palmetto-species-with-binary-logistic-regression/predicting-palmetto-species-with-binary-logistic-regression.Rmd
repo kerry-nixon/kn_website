@@ -1,0 +1,172 @@
+---
+title: "Predicting Palmetto Species with Binary Logistic Regression"
+description: |
+  Using binary logistic regression to predictively model tree species and compare against actual species data. This poject was completed as an assignment for Professor Allison Horst's ESM 244 Advanced Data Analysis class. Completed: 2/2/2021
+author:
+  - name: Kerry Nixon
+    url: {}
+date: 03-14-2021
+output:
+  distill::distill_article:
+    self_contained: false
+    code_folding: 'hide'
+---
+
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(GGally)
+library(broom)
+library(jtools)
+library(here)
+library(stringr)
+library(ggfortify)
+library(kableExtra)
+library(janitor)
+```
+
+
+```{r}
+# Read in and wrangle data
+
+palmetto <- read_csv(here("_posts/2021-03-14-predicting-palmetto-species-with-binary-logistic-regression/data/palmetto.csv"),
+                     col_types = cols(.default = "c")) %>% 
+  transmute(height = as.numeric(height),
+         length = as.numeric(length),
+         width = as.numeric(width),
+         green_lvs = as.numeric(green_lvs),
+         species = as.factor(species)) %>% 
+  na.omit()
+  
+```
+
+## Exploration of Explanatory Variables
+
+```{r, warning=FALSE, message=FALSE}
+# Data exploration: examining the relationship between palm height, canopy width, canopy length, and number of green leaves (explanatory or predictor variables) with palmetto species (dependent variable).
+palmetto %>% 
+  ggpairs(aes(color = species))
+```
+
+
+**Figure 1.** GGpairs plot for exploring the relationship between the explanatory variables of height, length, width, and green leaves for each of the palmetto species. 
+
+#### Analysis:
+
+- Length, height, and width are all heighly correlated, which makes sense becasue larger, and presumably older, trees will generally be larger across all dimensions of size, than smaller and presumabley younger trees of the same species. 
+
+- Count of green leaves appears to be the variable with the greatest variance between the two species. 
+
+- Length appears to the be the variable with the second most variation between the two species.
+
+
+```{r, warning=FALSE, message=FALSE}
+palmetto_PCA <- palmetto %>% 
+  select(height:green_lvs) %>%
+  scale() %>% 
+  prcomp()
+
+# Variance explained by each PC
+# palmetto_scree <- screeplot(palmetto_PCA, type = "lines")
+
+# Checking the loadings (weighting for each principal component)
+# palmetto_loads <- palmetto_PCA$rotation
+
+autoplot(palmetto_PCA,
+         data = palmetto,
+         loadings = TRUE,
+         loadings.label = TRUE,
+         colour = "species",
+         loadings.colour = "black",
+         loadings.label.colour = "black",
+         loadings.label.repel = TRUE
+         ) +
+  theme_bw() 
+
+```
+
+
+**Figure 2.** The PCA biplot shows the correlation between length, height, width, and count of green leaves in explaining variance in observed data for the two palmetto species, *S. repens* and *S. etonia*. Length and green leaves have almost no correlation. Height and width are very strongly, positively correlated. Length is fairly strongly positively correlated with width and height. The observations for the two species form somewhat overlapping clusters.
+
+#### Analysis:
+
+- The PCA biplot shows that count of green leaves is a strong predictor variable for species 1, which is clustered around the green leaves eigenvector. Length is a good predictor for species 2 as species 2 is clustered in parallel to the length eigenvector. 
+
+- The overall variance explained by these four variables is 88.84%, meaning these will likely contribute to a fairly reliable model for predicting which palm species an individual plant may be.
+
+
+## Binary Logistic Regression
+
+**Table 1.** The below summary table shows the output from a binary logistic regression utilizing the four explanatory variables explored in *fig. 1* and *fig. 2* to predict whether an individual palmetto is either the *S. repens* or *S. etonia* species. The Estimate column shows the log odds output for each variable with the reference level *S. repens*. A positive log odds would indicate that an increase in that variable would increase the logs odds of the palmetto tree being *S. etonia* if all other variablesa re held constant. And negative log odds would indicate that an increase in that variable would decrease the log odds of that tree being *S. etonia* if all other variables are held constant. The *p* values are all significant, meaning that there is a very low chance that the variability in the explanatory variable observations by species is by random chance.  
+
+```{r}
+# Creating binary logistic regression with the four explantory variables explored above. 
+palmetto_blr <- glm(species ~ length + green_lvs + width + height, 
+                            data = palmetto,
+                            family = "binomial")
+
+#Viewing and summarizing the model outputs
+# palmetto_blr
+# summary(palmetto_blr)
+
+# Get a tidy version w/ broom: 
+blr_tidy <- broom::tidy(palmetto_blr)
+
+kbl(blr_tidy, col.names = c("Term", "Estimate", "Standard Error", "Statistic", "p Value")) %>% 
+  kable_styling(full_width = FALSE, "striped")
+
+```
+
+#### Analysis:
+
+- Canopy length and width are both positively correlated with the log odds of a palmetto being a *S. etonia*.
+
+- Count of green leaves and height are both negatively correlated with the log odds of a palmetto being *S. etonia*.
+
+
+**Table 2.** The below table is a summary showing the accuracy of species prediction for our binary logistic model when fitted to the observed data. The percentage of correct predictions is shown for each species, as well as the total number of correctly identified trees, total number of incorrectly identified trees, and total trees for each species.
+
+```{r}
+# Converting to probabilities for ease of comprehension and explanation of model results, as well as testing the model fit based on prediction parameters
+blr_fitted <- palmetto_blr %>% 
+  broom::augment(type.predict = "response")
+
+# Setting parameters for predicting a species based on fitted (probability) values
+blr_correct <- blr_fitted %>% 
+  mutate(correct = case_when(
+    .fitted >= .5 & species == 2 ~ TRUE,
+    .fitted < .5 & species == 2 ~ FALSE,
+    .fitted >= .5 & species == 1 ~ FALSE,
+    .fitted < .5 & species == 1 ~ TRUE))
+
+# Creating summary table for model fit
+mdl_summ <- blr_correct %>% 
+  group_by(species) %>% 
+  summarise(pct_correct = (sum(correct == TRUE)/length(correct))*100,
+            total_correct = sum(correct == TRUE),
+            total_incorrect = sum(correct == FALSE),
+            total_trees = sum(correct %in% c(TRUE,FALSE))) %>% 
+  mutate(species = case_when(
+    species == 1 ~ "Serenoa repens",
+    species == 2 ~ "Sabal etonia"))  %>% 
+  rename(Species = species,
+         "% Correct" = pct_correct,
+         "Total Correct" = total_correct,
+         "Total Incorrect" = total_incorrect,
+         "Total Trees" = total_trees)
+
+kbl(mdl_summ) %>% 
+  kable_styling(full_width = FALSE, "striped")
+```
+
+
+#### Analysis:
+
+- The BLR model achieved accurate predictions of Palmetto species over 90% of the time for both species: 90.7% for *S. repens* and 92.6% for *S. etonia*.
+
+
+## Data:
+
+Abrahamson, W.G. 2019. Survival, growth and biomass estimates of two dominant palmetto species of south-central Florida from 1981 - 2017, ongoing at 5-year intervals ver 1. Environmental Data Initiative. https://doi.org/10.6073/pasta/f2f96ec76fbbd4b9db431c79a770c4d5
+

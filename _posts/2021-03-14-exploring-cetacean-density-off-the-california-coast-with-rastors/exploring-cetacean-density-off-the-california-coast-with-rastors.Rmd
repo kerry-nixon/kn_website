@@ -1,0 +1,113 @@
+---
+title: "Exploring Cetacean Density Off the California Coast with Rastors"
+description: |
+  This project uses species data rastors and rastor algebra to plot cetacean species density along a portion of the CA coast. The project was produced as part of an assigmnet for Professor Allison Horst's ESM 244 Advanced Data Analysis class. Completed: 2/23/2021
+author:
+  - name: Kerry Nixon
+    url: {}
+date: 03-14-2021
+output:
+  distill::distill_article:
+    self_contained: false
+    code_folding: 'hide'
+---
+
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(raster) # attaching before tidyverse
+library(tidyverse)
+library(here)
+library(sf)
+library(janitor)
+library(fasterize)
+library(rnaturalearth)
+library(jpeg)
+library(ggpubr)
+```
+
+
+```{r, echo=FALSE}
+img.file <- here("_posts/2021-03-14-exploring-cetacean-density-off-the-california-coast-with-rastors/img/pexels-kira-louw-4755027-copy.jpg")
+img <- readJPEG(img.file)
+ggplot() +
+  background_image(img)
+```
+
+
+## Using Predicted Range Maps to Estimate Cetacean Species Richness in the Coastal Waters of California
+
+Cetaceans are an order of marine mammals, *Cetacea*, that include whales, dolphins and porpoises. This brief spatial analysis utilizes raster map data produced by AquaMaps, that predicts ranges aquatic species based on environmental suitability. Factors considered include a "species preferences for water temperature, depth, salinity, and distance to land" and are used to produce a probability of a species occurring in an area. For this project, predicted range maps for 35 cetacean species found in the coastal waters of California are used to create a density map of cetacean species richness, based on how many of these 35 species are likely to be present. The latitudinal and longitudinal ranges of the maps are 125° W to 115°W and 32°N to 38°N, which excludes a portion of the northern California coast.  
+
+```{r, message=FALSE, warning=FALSE, results='hide'}
+# Reading in the data
+
+# Shapefile data for polygons to plot on top of final raster
+ca_border <- ne_download(scale = "large", type = "states", category = "cultural", returnclass = "sf")
+ca_land <- ne_download(scale = "large", type = "land", category = "physical", returnclass = "sf")
+  
+# cetacean raster files read in as list of file paths to be fed into raster stack for ease of wrangling and use
+cet_list <- list.files(path = here("_posts/2021-03-14-exploring-cetacean-density-off-the-california-coast-with-rastors/data"), full.names = TRUE, pattern = ".tif")
+
+# creating object out of "stacked" cetacean rasters
+cet_stack <- stack(cet_list)
+```
+
+## Exploratory Data Visualizations
+```{r, message=FALSE, warning=FALSE}
+# Data Wrangling & exploratory visualization
+
+# Creating a function to set the threshold for a cetacean species presence based on probability
+sp_present <- function(x, thresh = .6) {
+  y <- ifelse(x >= thresh, 1, 0)
+  return(y)}
+
+# Setting binary raster pixel values to 0 or 1 based on whther probability value meets threshold level from function
+cet_presence <- calc(cet_stack, fun = sp_present)
+
+# Plotting presence of each species: 0 = red (not present), 1 = slateblue (present), plot is auto-faceted by species raster, and can only show a max of 16 facets
+plot(cet_presence, col = c("red", "slateblue"), na.rm = TRUE)
+
+# Using raster algebra to sum the pixel values for all 35 cetacean presence rastors in the stack to create an object showing the variation in species richness over the extent of the raster area (i.e. an object that can be used to create a species richness density plot)
+sp_richness <- calc(cet_presence, fun = sum, na.rm = TRUE)
+
+# plotting species richness raster
+plot(sp_richness, col = hcl.colors(100, "Teal"))
+```
+
+## Richness of Cetacean Species Along the California Coast
+```{r}
+
+# Filtering for only the CA border
+ca_border <- ca_border %>% 
+  filter(name == "California")
+
+# transforming raster stack to df for use with ggplot
+sp_richness_df <- raster::rasterToPoints(sp_richness) %>%
+  as.data.frame()
+
+```
+
+```{r, preview = TRUE}
+# plotting the species richness with the ca coastline
+ggplot() +
+  geom_raster(data = sp_richness_df, aes(x = x, y = y, fill = layer)) +
+  scale_fill_distiller(type = "seq", palette = "Blues", aesthetics = "fill", direction = 1) +
+  geom_sf(data = ca_land, fill = "burlywood1") +
+  geom_sf(data = ca_border, fill = "burlywood1") +
+  coord_sf(xlim = c(-125, -115), ylim = c(32,38), expand = 0) +
+  labs(x = "", y = "", fill = "Cetacean Species\nRichness")
+
+```
+
+**Figure 1.** The above map shows the variable species richness of coastal waters along California as measured by the likely presence of between 0 to 35 cetacean species. The threshold for assigning a species' presence in an area was set at 60% probability of occurrence.
+
+
+### Citations:
+
+Kaschner, K., Rius-Barile, J., Kesner-Reyes, K., Garilao, C., Kullander, S., Rees, T., & Froese, R. (2016). *AquaMaps: Predicted range maps for aquatic species*. www.aquamaps.org
+
+Natural Earth. Shapefiles. *states*, *land*. Free vector and raster map data @ www.naturalearthdata.com
+
+Ric O'Barry's Dolphin Project. Image. *pexels-kira-louw-4755027.jpg* www.dolphinproject.com
+

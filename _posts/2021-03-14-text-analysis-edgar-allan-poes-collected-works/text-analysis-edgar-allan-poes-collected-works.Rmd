@@ -1,0 +1,210 @@
+---
+title: "Text Analysis: Edgar Allan Poe's Collected Works"
+description: |
+  Text analysis of Gutenberg Library's online edition of Edgar Allan Poe's collected works completed as poart of an assignment for Professor Allison Horst's ESM 244 Advanced Data Analysis class. Completed: 2/22/2021
+author:
+  - name: Kerry Nixon
+    url: {}
+date: 03-14-2021
+output:
+  distill::distill_article:
+    self_contained: false
+    code_folding: 'hide'
+---
+
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(pdftools)
+library(ggwordcloud)
+library(gutenbergr)
+library(plotly)
+library(jpeg)
+library(ggpubr)
+library(here)
+```
+
+## Introduction: The Works of Edgar Allan Poe in Five Volumes
+
+Edgar Allan Poe was an American writer and poet considered to be a central figure in the Romanticism intellectual movement in the United States. Poe is well known the macabre content of some of his works, but he is also considered to be the inventor of the detective fiction genre, as well as an early contributor to the short story and science fiction genres. This brief text analysis examines the most commonly used words in Poe's writing as well as overall sentiments across Poe's collected works which are divided into five volumes. 
+
+```{r, results='hide', message=FALSE}
+# Reading in text and wrangling into analyzable data format
+
+# The Works of Edgar Allan Poe: Gutenberg Project Ebook number: 25525
+poe <- gutenberg_download(25525, mirror = "http://mirrors.xmission.com/gutenberg/")
+
+# Transforming into data frame and removing excess spaces
+poe_tidy <- data.frame(poe) %>%
+  mutate(text = str_trim(text)) 
+
+# further cleaning up data frame, adding volume column and observations
+poe_df <- poe_tidy %>% 
+  slice(-(1:196)) %>% 
+  mutate(volume = case_when(
+    str_detect(text, "VOLUME ") ~ text, # added space after volume to filter out notes
+    TRUE ~ NA_character_
+  )) %>% 
+  fill(volume) %>% 
+  separate(col = volume, into = c("vol", "no"), sep = " ") %>% 
+  mutate(no = str_sub(no, 1, nchar(no)-1)) %>% # remove the period - the last character "." from each chapter number
+  mutate(volume = as.numeric(no)) %>% 
+  mutate(text = str_replace(text, "Bon-Bon", "Bonbon")) %>% 
+  mutate(text = str_replace(text, "BON-BON", "BONBON"))
+
+# Separate text into words or "tokens"
+poe_tokens <- poe_df %>% 
+  unnest_tokens(word, text) %>% 
+  select(-gutenberg_id) %>% 
+  mutate(word = str_replace_all(word, pattern = "_", replacement = ""))
+
+# Preliminary word count 
+poe_wordcount <- poe_tokens %>% 
+  count(volume, word) 
+
+# Removing "stop words"
+poe_nonstop_words <- poe_tokens %>% 
+  anti_join(stop_words) %>% 
+  filter(!word %in% c("thy", "thou", "thee", "de"))
+
+# Word count without stop words
+poe_nonstop_counts <- poe_nonstop_words %>% 
+  count(volume, word)
+```
+
+## The Top 5 Words in Each Volume of Work
+
+A note on the contents of each volume. 
+
+- Volume 1: preface and short stories
+
+- Volume 2: short stories
+
+- Volume 3: "Narrative of A. Gordon Pym" Ch 1-25, short stories
+
+- Volume 4: short stories
+
+- Volume 5: short stories, poetry
+
+```{r}
+
+# Top 5 words by volume with stop words removed
+top_5_words <- poe_nonstop_counts %>% 
+  group_by(volume) %>% 
+  arrange(-n) %>% 
+  slice(1:5)
+
+# Data Viz: graphs of top words faceted by volume: 
+ggplot(data = top_5_words, aes(x = word, y = n)) +
+  geom_col(fill = "darkorchid4") +
+  facet_grid(volume~., scales = "free") +
+  labs(x = "Most Prevalent Words in Volume\n",
+       y = "\nNumber of Occurences") +
+  coord_flip() +
+  theme_bw()
+```
+
+
+**Figure 1.** This bar chart depicts the prevalence of the top 5 words in each volume of Edgar Allan Poe's collected works. *Time* and *found* appear as the most repeated themes throughout the volumes. *Love* only appears in the top 5 words for the fifth volume of work, which includes Poe's poetry. 
+
+
+## Word Cloud of the Top 100 Words from Edgar Allan Poe's Works
+
+```{r}
+poe_top100 <- poe_nonstop_words %>%
+  count(word) %>% 
+  arrange(-n) %>% 
+  slice(1:100)
+
+# Import image for background
+img.file <- here("_posts/2021-03-14-text-analysis-edgar-allan-poes-collected-works/img/2-21676_bird-watercolor-painting-common-raven-drawing-raven-vector.jpg")
+img <- readJPEG(img.file)
+
+```
+
+```{r, preview = TRUE}
+poe_cloud <- ggplot(data = poe_top100, aes(label = word)) +
+  background_image(img) +
+  geom_text_wordcloud(aes(color = n, size = n), shape = "diamond") +
+  scale_size_area(max_size = 6) +
+  scale_color_gradientn(colors = c("firebrick4", "coral", "goldenrod2")) +
+  theme_minimal()
+
+poe_cloud
+
+```
+
+
+**Figure 2.** An artful representation of the top 100 most common words throughout Edgar Allan Poe's collected works. See image citation in citations section.
+
+
+## Sentiment Analysis with NRC Lexicon
+
+```{r, results='hide', message=FALSE}
+# Wrangling with Lexicons for exploratory comparison of sentiment analysis
+
+get_sentiments(lexicon = "afinn")
+get_sentiments(lexicon = "nrc")
+
+poe_afinn <- poe_nonstop_words %>% 
+  inner_join(get_sentiments("afinn"))
+
+poe_nrc <- poe_nonstop_words %>% 
+  inner_join(get_sentiments("nrc"))
+```
+
+```{r, fig.width=10, include=FALSE}
+# Afinn sentiments
+afinn_counts <- poe_afinn %>% 
+  count(volume, value)
+
+# Plot them: 
+ggplot(data = afinn_counts, aes(x = value, y = n)) +
+  geom_col() +
+  facet_wrap(~volume)
+
+# Find the mean afinn score by chapter: 
+afinn_means <- poe_afinn %>% 
+  group_by(volume) %>% 
+  summarize(mean_afinn = mean(value))
+
+ggplot(data = afinn_means, 
+       aes(x = fct_rev(as.factor(volume)), 
+           y = mean_afinn)) +
+  geom_col(aes(fill = mean_afinn)) +
+  scale_fill_continuous(type = "viridis") +
+  labs(x = "Volume Number\n",
+       y = "\nAffinity Score") +
+  coord_flip() +
+  theme_bw()
+```
+
+
+
+```{r, fig.width=10, results='hide', message=FALSE}
+poe_nrc_counts <- poe_nrc %>% 
+  count(volume, sentiment)
+
+ggplot(data = poe_nrc_counts, aes(x = sentiment, y = n)) +
+  geom_col(aes(fill = sentiment),
+           show.legend = FALSE) +
+  facet_grid(.~volume) +
+  labs(x = "Sentiment\n",
+       y = "\nNumber of Words Associated with Sentiment",
+       title = "Sentiment Breakdown by Volume\n") +
+  coord_flip() +
+  theme_bw()
+```
+
+
+**Figure 3.** This bar chart shows the prevalence of positive versus negative affected words in Edgar Allan Poe's work, as well as the prevalence of words associated with an array of emotional sentiments using the NRC lexicon. Across all five volumes of Poe's collected works, his writing has an overall positive affectation. The distribution of sentiments is remarkably consistent across his body of work with the major difference seen in the reversal of relative prevalence of words associated with joy and fear in the fifth volume of writing which contains Poe's poetry. 
+
+
+### Citations:
+
+Poe, Edgar Allan. The Works of Edgar Allan Poe, The Raven Edition. Release Date: May 19, 2008  https://www.gutenberg.org/ebooks/25525
+
+*Bird Watercolor Painting Common Raven Drawing - Raven Vector*. Image. https://www.nicepng.com/ourpic/u2a9o0u2i1a9y3q8_bird-watercolor-painting-common-raven-drawing-raven-vector/

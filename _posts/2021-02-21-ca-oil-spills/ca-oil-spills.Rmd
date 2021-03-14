@@ -1,0 +1,114 @@
+---
+title: "California Oil Spills"
+description: |
+  Using open data to visually explore oil spills in CA.
+author:
+  - name: Kerry Nixon
+    url: {}
+date: 02-21-2021
+output:
+  distill::distill_article:
+    self_contained: false
+    code_folding: hide
+---
+
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+library(janitor)
+library(sf)
+library(tmap)
+library(gstat)
+library(stars)
+library(ggiraph)
+```
+
+
+## Visualizing a Year of Oil Spill Data for California
+
+The Office of Spill Prevention and Response (OSPR) of the California Department of Fish and Game collects and maintains statewide oil spill data in its Incident Tracking Database. This visual analysis makes use of the OSPR's publicly available data from 2008 to map oil spill incidents throughout the state by environment type and county. The OSPR database defines an incident as "a discharge or threatened discharge of petroleum or other deleterious material into the waters of the state" (Oil Spill Incident Tracking, 2014), though some land spill incidents are also recorded. 
+
+
+```{r, echo=TRUE, results='hide'}
+# Read in the oil spill data
+oil_spill_data <- read_sf(here("_posts/2021-02-21-ca-oil-spills/data/Oil_Spill_Incident_Tracking_%5Bds394%5D-shp"), layer = "Oil_Spill_Incident_Tracking_%5Bds394%5D") %>% 
+  clean_names()
+
+# Check the projection and CRS 
+st_crs(oil_spill_data) # WGS 84 - EPSG 3857
+
+# Read & wrangle the CA county data (TIGER shapefile):
+ca_counties <- read_sf(here("_posts/2021-02-21-ca-oil-spills/data/ca_counties"), layer = "CA_Counties_TIGER2016") %>% 
+  clean_names() %>% 
+  select(name)
+
+# Check the projection and CRS & transform to match oil_spill_data CRS if needed
+st_crs(ca_counties)  # WGS 84 - EPSG 3857 - the CRS already match
+```
+
+
+```{r, include=FALSE}
+# Data-Viz: exploratory ggplot
+ggplot() +
+  geom_sf(data = ca_counties) +
+  geom_sf(data = oil_spill_data, aes(color = specificlo))
+```
+
+
+## Oil Spills by Location and Environment
+
+```{r, echo=TRUE, message=FALSE}
+tmap_mode("view")
+
+tm_shape(oil_spill_data) +
+  tm_dots("specificlo", id = "oesnumber", title = "Spill Environment", palette = c("#DEEDCF", "#1D9A6C", "#0A2F51"), popup.vars = c("localecity", "localecoun"))
+```
+
+
+**Figure 1.** The above interactive map contains points depicting the location of oil spills in California that occurred in 2008. Points are color coded by the general environment type where the spill occurred, either land, freshwater, or marine. Hover over a point to view the OES control number assigned by Cal EMA to track incidents. Click on a point to view a pop-up that includes the OES number as well as the city and county where the spill occurred. 
+
+
+## Oil Spills by County
+
+```{r}
+# Data wrangling:
+
+# ca_counties data: changing county name variable so it matches the oil_spill_data county name variable
+ca_counties_spillcount <- ca_counties %>%
+  rename(localecoun = name)
+
+# oil_spill_data: filtering out marine spills, counting number of inland (land and freshwater) spills per county
+oil_spill_count <- oil_spill_data %>% 
+  filter(inlandmari == "Inland") %>% 
+  count(localecoun)
+
+# Using st_join() to combine the two data files into one that contains the spill counts by county in CA
+spill_count_by_county <- ca_counties_spillcount %>% 
+  st_join(oil_spill_count)
+
+
+# Data Viz: Finalized Chloropleth Plot
+
+# Using ggplot to generate a chloropleth plot using the number of oil spills by county as the fill color
+ggplot(data = spill_count_by_county) +
+  geom_sf(aes(fill = n), color = "black", size = .1) +
+  scale_fill_gradientn(colors = c("#DEEDCF","#1D9A6C","#137177","#0A2F51"), na.value = "white") +
+  theme_minimal() +
+  labs(fill = "Number of Inland Oil Spills")
+
+```
+
+
+**Figure 2.** The above chloropleth plot of California shows the number of inland oil spills that occurred in 2008 by county. Inland spills include both land and freshwater incidents. Counties without oil spill data are colored white. Darker colors correspond with a higher number of oil spills.
+
+
+### Data Citations:
+
+California Department of Fish and Game, Office of Spill Prevention and Response. "Oil Spill Incident Tracking [ds394]" [digital map]. "California State Geoportal". 2009-07-23. https://gis.data.ca.gov/datasets/7464e3d6f4924b50ad06e5a553d71086_0/data. (2021-02-21).
+
+California Department of Technology, California Open Data Portal. "CA County Boundaries" [shapefile]. 2019-08-10. https://data.ca.gov/dataset/e212e397-1277-4df3-8c22-40721b095f33/resource/b0007416-a325-4777-9295-368ea6b710e6/download/ca-county-boundaries.zip (2021-02-21).
+
+
+
