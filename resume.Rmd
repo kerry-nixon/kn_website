@@ -1,11 +1,11 @@
 ---
 title: "Resume"
 description: |
-  Extended resumé featuring professional, academic, and volunteer experience.
+  Resumé featuring professional, academic, and volunteer experience. Please reach out for further detail.
 ---
 
 ```{r echo = FALSE, message=FALSE, fig.align='center', fig.pos='H', out.width = "800px", out.height = "1100px"}
 
-knitr::include_graphics("LongRes_2021.pdf")
+knitr::include_graphics("KerryNixon_Resume copy.pdf")
 ```
 

@@ -1,7 +1,7 @@
 ---
 title: "California Oil Spills"
 description: |
-  Using open data to visually explore oil spills in CA.
+  Using open data to visually explore oil spills in CA. This data visualization was produced as an assignment for Professor Allison Horst's ESM 206 Data Science course.
 author:
   - name: Kerry Nixon
     url: {}
