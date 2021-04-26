@@ -9,8 +9,6 @@ links:
     url: "https://github.com/kerry-nixon"
   - label: Email
     url: "mailto:knixon@berkeley.edu"
-  - label: agxplorR Web App
-    url: "https://kerry-nixon.shinyapps.io/agxplorr/"
 output:
   postcards::jolla
   
